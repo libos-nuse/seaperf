@@ -5,21 +5,25 @@
 namespace seaperf {
 namespace server {
 
-std::unique_ptr<rpc::protocol<serializer>::server> listen(ipv4_addr addr) {
-  rpc::protocol<serializer> protocol{{}};
-
-  protocol.register_handler(RPC_TCPBENCH, [=](uint64_t duration_sec) {
-    auto conn = std::make_unique<BenchmarkConn>();
+void BenchmarkService::listen(ipv4_addr addr) {
+  m_protocol = std::make_unique<rpc_protocol>(serializer{});
+  m_protocol->register_handler(RPC_TCPBENCH, [=](uint64_t duration_sec) {
     auto duration = std::chrono::seconds{duration_sec};
-    conn->set_bench_duration(duration);
-    return do_with(std::move(conn),
-                   [addr](auto& conn) { return conn->listen_and_run(addr); });
+    return do_with(TCPBenchmarkConn{}, [addr, duration](auto& conn) {
+      conn.set_bench_duration(duration);
+      return conn.listen_and_run(addr);
+    });
   });
 
-  return std::make_unique<rpc::protocol<serializer>::server>(protocol, addr);
+  m_server = std::make_unique<rpc_protocol::server>(*m_protocol, addr);
 }
 
-future<BenchmarkResult> BenchmarkConn::listen_and_run(ipv4_addr addr) {
+future<> BenchmarkService::stop() {
+  m_stopping = true;
+  return m_server->stop();
+}
+
+future<BenchmarkResult> TCPBenchmarkConn::listen_and_run(ipv4_addr addr) {
   listen_options lo;
   lo.reuse_address = true;
   m_listener = engine().listen(make_ipv4_address(addr), lo);
@@ -37,11 +41,11 @@ future<BenchmarkResult> BenchmarkConn::listen_and_run(ipv4_addr addr) {
       .then([this] { return make_ready_future<BenchmarkResult>(m_result); });
 }
 
-void BenchmarkConn::set_bench_duration(timer<>::duration t) {
+void TCPBenchmarkConn::set_bench_duration(timer<>::duration t) {
   m_bench_duration = t;
 }
 
-future<> BenchmarkConn::run() {
+future<> TCPBenchmarkConn::run() {
   m_is_time_up = false;
   m_bench_timer.set_callback([this] { m_is_time_up = true; });
   m_bench_timer.arm(m_bench_duration);

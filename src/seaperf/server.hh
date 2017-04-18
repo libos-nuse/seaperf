@@ -10,9 +10,21 @@
 namespace seaperf {
 namespace server {
 
-std::unique_ptr<rpc::protocol<serializer>::server> listen(ipv4_addr addr);
+class BenchmarkService : public seastar::sharded<BenchmarkService> {
+  public:
+    void listen(ipv4_addr addr);
+    future<> stop();
+    bool is_stopping() { return m_stopping; }
 
-class BenchmarkConn {
+  private:
+    using rpc_protocol = rpc::protocol<serializer>;
+    std::unique_ptr<rpc_protocol> m_protocol;
+    std::unique_ptr<rpc_protocol::server> m_server;
+
+    bool m_stopping {false};
+};
+
+class TCPBenchmarkConn {
  public:
   future<BenchmarkResult> listen_and_run(ipv4_addr addr);
   void set_bench_duration(timer<>::duration t);

@@ -11,14 +11,19 @@
 #include "server.hh"
 
 future<> app_main(app_template& app) {
+  using namespace seaperf::server;
+
   auto& args = app.configuration();
   auto host = args["host"].as<std::string>();
   auto port = args["port"].as<uint16_t>();
   auto addr = ipv4_addr(host, port);
-  auto server = seaperf::server::listen(addr);
-  do_with(std::move(server), [](auto& server) {
-      engine().at_exit([&server] { return server->stop(); });
-  });
+  auto service = new BenchmarkService{};
+
+  return service->start()
+      .then([=] {
+        return service->invoke_on_all(&BenchmarkService::listen, addr);
+      })
+      .then([=] { return engine().at_exit([=] { return service->stop(); }); });
 }
 
 int main(int argc, char* argv[]) {
