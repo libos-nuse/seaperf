@@ -1,11 +1,20 @@
 #include <algorithm>
 #include <string>
+#include <core/reactor.hh>
 
 #include "client.hh"
 #include "utils.hh"
 
 namespace seaperf {
 namespace client {
+
+std::unique_ptr<rpc::protocol<serializer>::client> connect(ipv4_addr addr) {
+  rpc::protocol<serializer> seaperf_rpc{{}};
+
+  seaperf_rpc.make_client<BenchmarkResult(uint64_t)>(RPC_TCPBENCH);
+
+  return std::make_unique<rpc::protocol<serializer>::client>(seaperf_rpc, addr);
+}
 
 Client::Client() {}
 

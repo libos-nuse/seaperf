@@ -6,6 +6,8 @@
 namespace seaperf {
 namespace client {
 
+std::unique_ptr<rpc::protocol<serializer>::client> connect(ipv4_addr addr);
+
 class Client {
  public:
   Client();
