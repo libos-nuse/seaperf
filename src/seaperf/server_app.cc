@@ -15,7 +15,7 @@ future<> app_main(app_template& app) {
   auto port = args["port"].as<uint16_t>();
   listen_options lo;
   lo.reuse_address = true;
-  auto server = new seaperf::server::Control{};
+  auto server = new seaperf::server::Server{};
   server->start()
       .then([server, port] { return server->listen(port); })
       .then([server, port] {

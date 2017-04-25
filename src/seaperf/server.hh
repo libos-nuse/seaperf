@@ -29,37 +29,20 @@ class Conn {
   timer<> m_bench_timer;
 };
 
-class Server {
+class Server : public seastar::sharded<Server> {
  public:
   Server() {}
 
   future<> listen(ipv4_addr addr);
-  future<> do_accepts();
   future<> stop();
   future<> stopped();
 
  private:
+  future<> do_accepts();
+
   server_socket m_listener;
   promise<> m_all_connections_stopped;
   future<> m_stopped = m_all_connections_stopped.get_future();
-};
-
-class Control {
- public:
-  Control() : m_server{new distributed<Server>} {}
-
-  future<> start() { return m_server->start(); }
-
-  future<> stop() { return m_server->stop(); }
-
-  future<> stopped() { return m_server->invoke_on_all(&Server::stopped); }
-
-  future<> listen(ipv4_addr addr) {
-    return m_server->invoke_on_all(&Server::listen, addr);
-  }
-
- private:
-  distributed<Server>* m_server;
 };
 }
 }
