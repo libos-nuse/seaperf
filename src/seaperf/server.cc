@@ -72,8 +72,8 @@ future<> Conn::process() {
       .then([this] {
         using namespace std::chrono;
         auto bench_sec = duration_cast<seconds>(m_bench_duration).count();
-        print("received: %d bytes\n", m_byte_cnt);
-        print("duration: %d s\n", bench_sec);
+        print("received bytes, duration sec, throughtput\n");
+        print("%d,%d,%d\n", m_byte_cnt, bench_sec, m_byte_cnt / bench_sec);
         return when_all(m_in.close(), m_out.close()).then([](auto) {
           make_ready_future<>();
         });
