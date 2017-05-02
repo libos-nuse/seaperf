@@ -33,7 +33,7 @@ class Server : public seastar::sharded<Server> {
  public:
   Server() {}
 
-  future<> listen(ipv4_addr addr);
+  future<> listen(ipv4_addr addr, uint64_t duration_sec);
   future<> stop();
   future<> stopped();
 
@@ -41,6 +41,7 @@ class Server : public seastar::sharded<Server> {
   future<> do_accepts();
 
   server_socket m_listener;
+  uint64_t m_duration_sec;
   promise<> m_all_connections_stopped;
   future<> m_stopped = m_all_connections_stopped.get_future();
 };
