@@ -1,4 +1,6 @@
+#include <core/byteorder.hh>
 #include <core/reactor.hh>
+#include "benchmark.hh"
 #include "server.hh"
 
 namespace seaperf {
@@ -17,11 +19,8 @@ future<> Server::do_accepts() {
       .then_wrapped(
           [this](future<connected_socket, socket_address> f_cs_sa) mutable {
             auto cs_sa = f_cs_sa.get();
-            auto conn = new Conn{std::get<0>(std::move(cs_sa)),
-                                 std::get<1>(std::move(cs_sa))};
-            // FIXME: hardcoded bench duration
-            using namespace std::chrono_literals;
-            conn->set_bench_duration(10s);
+            auto conn = new BenchmarkConn{std::get<0>(std::move(cs_sa)),
+                                          std::get<1>(std::move(cs_sa))};
             conn->process().then_wrapped([this, conn](auto&& f) {
               delete conn;
               try {
@@ -46,39 +45,41 @@ future<> Server::stop() {
   return make_ready_future<>();
 }
 
-future<> Server::stopped() {
-  return m_stopped.then([] { make_ready_future<>(); });
-}
+future<> Server::stopped() { return m_stopped.discard_result(); }
 
-future<> Conn::process() {
+future<> BenchmarkConn::process() {
   m_is_time_up = false;
   m_bench_timer.set_callback([this] { m_is_time_up = true; });
-  m_bench_timer.arm(m_bench_duration);
 
-  return repeat([this] {
-           return m_in.read().then([this](auto buf) {
-             if (m_is_time_up) {
-               return make_ready_future<stop_iteration>(stop_iteration::yes);
-             }
-             if (buf) {
-               m_byte_cnt += buf.size();
-               return make_ready_future<stop_iteration>(stop_iteration::no);
-             } else {
-               return make_ready_future<stop_iteration>(stop_iteration::yes);
-             }
-           });
-         })
-      .then([this] {
-        using namespace std::chrono;
-        auto bench_sec = duration_cast<seconds>(m_bench_duration).count();
-        print("received: %d bytes\n", m_byte_cnt);
-        print("duration: %d s\n", bench_sec);
-        return when_all(m_in.close(), m_out.close()).then([](auto) {
-          make_ready_future<>();
+  return m_in.read_exactly(sizeof(BenchmarkRequest))
+      .then([this](auto buf) mutable {
+        BenchmarkRequest req = *reinterpret_cast<const BenchmarkRequest*>(buf.get());
+        req.duration = le_to_cpu(req.duration);
+        auto duration = std::chrono::seconds{req.duration};
+        m_bench_timer.arm(duration);
+
+        return repeat([this]() mutable {
+          return m_in.read().then([this](auto buf) mutable {
+            if (m_is_time_up) {
+              return make_ready_future<stop_iteration>(stop_iteration::yes);
+            }
+            if (buf) {
+              m_byte_cnt += buf.size();
+              return make_ready_future<stop_iteration>(stop_iteration::no);
+            } else {
+              return make_ready_future<stop_iteration>(stop_iteration::yes);
+            }
+          });
         });
+      })
+      .then([this]() mutable {
+        BenchmarkResult res;
+        res.byte_cnt = m_byte_cnt;
+        return m_out.write(reinterpret_cast<char*>(&res), sizeof(res));
+      })
+      .then([this]() mutable {
+        return when_all(m_in.close(), m_out.close()).discard_result();
       });
 }
-
-void Conn::set_bench_duration(timer<>::duration t) { m_bench_duration = t; }
 }  // namespace server
 }  // namespace seaperf

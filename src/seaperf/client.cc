@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <string>
 
+#include <core/byteorder.hh>
+
+#include "benchmark.hh"
 #include "client.hh"
 #include "utils.hh"
 
@@ -31,19 +34,43 @@ future<> Client::run(ipv4_addr addr) {
 
   m_is_time_up = false;
   m_bench_timer.set_callback([this] { m_is_time_up = true; });
-  m_bench_timer.arm(m_bench_duration + m_margin);
 
-  return engine().connect(addr).then([this](auto sock) mutable {
-    m_sock = std::move(sock);
-    m_in = m_sock.input();
-    m_out = m_sock.output();
-    return this->benchmark().then([this]() mutable {
-      return when_all(m_in.close(), m_out.close()).discard_result();
-    });
-  });
+  return engine()
+      .connect(addr)
+      .then([this](auto sock) mutable {
+        m_sock = std::move(sock);
+        m_in = m_sock.input();
+        m_out = m_sock.output();
+
+        BenchmarkRequest req;
+        req.duration = m_bench_duration.count();
+        req.duration = cpu_to_le(req.duration);
+        return m_out.write(reinterpret_cast<char*>(&req), sizeof(req));
+      })
+      .then([this]() mutable {
+        m_bench_timer.arm(m_bench_duration + m_margin);
+        return this->benchmark();
+      })
+      .then([this]() mutable {
+        return m_in.read_exactly(sizeof(BenchmarkResult))
+            .then([this](auto buf) {
+              auto bench_sec = m_bench_duration.count();
+              BenchmarkResult res =
+                  *reinterpret_cast<const BenchmarkResult*>(buf.get());
+              std::cout << "duration sec, bytes sent, packet size, throughput\n"
+                        << bench_sec << ',' << res.byte_cnt << ','
+                        << m_sendbuf_size << ',' << res.byte_cnt / bench_sec
+                        << '\n';
+            });
+      })
+      .then([this]() mutable {
+        return when_all(m_in.close(), m_out.close()).discard_result();
+      });
 }
 
-void Client::set_bench_duration(std::chrono::seconds t) { m_bench_duration = t; }
+void Client::set_bench_duration(std::chrono::seconds t) {
+  m_bench_duration = t;
+}
 
 void Client::set_bufsize(size_t bufsize) { m_sendbuf_size = bufsize; }
 }  // namespace client
