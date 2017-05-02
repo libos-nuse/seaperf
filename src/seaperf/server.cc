@@ -4,9 +4,7 @@
 namespace seaperf {
 namespace server {
 
-future<> Server::listen(ipv4_addr addr, uint64_t duration_sec) {
-  m_duration_sec = duration_sec;
-
+future<> Server::listen(ipv4_addr addr) {
   listen_options lo;
   lo.reuse_address = true;
   m_listener = engine().listen(make_ipv4_address(addr), lo);
@@ -21,8 +19,9 @@ future<> Server::do_accepts() {
             auto cs_sa = f_cs_sa.get();
             auto conn = new Conn{std::get<0>(std::move(cs_sa)),
                                  std::get<1>(std::move(cs_sa))};
-            auto bench_duration = std::chrono::seconds{m_duration_sec};
-            conn->set_bench_duration(bench_duration);
+            // FIXME: hardcoded bench duration
+            using namespace std::chrono_literals;
+            conn->set_bench_duration(10s);
             conn->process().then_wrapped([this, conn](auto&& f) {
               delete conn;
               try {
