@@ -35,8 +35,7 @@ future<> Client::run(ipv4_addr addr) {
   m_is_time_up = false;
   m_bench_timer.set_callback([this] { m_is_time_up = true; });
 
-  return engine()
-      .connect(addr)
+  return stubborn_connect(addr)
       .then([this](auto sock) mutable {
         m_sock = std::move(sock);
         m_in = m_sock.input();
