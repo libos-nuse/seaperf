@@ -57,7 +57,7 @@ future<> Client::run(ipv4_addr addr) {
         BenchmarkResult res = *reinterpret_cast<const BenchmarkResult*>(buf.get());
         res.byte_cnt = le_to_cpu(res.byte_cnt);
         auto bench_sec = m_bench_duration.count();
-        auto mbit_cnt = res.byte_cnt / 1000000;
+        auto mbit_cnt = 8 * res.byte_cnt / 1000000;
         std::cout << "duration sec, bytes sent, packet size, throughput, "
                      "throuput unit\n"
                   << bench_sec << ',' << res.byte_cnt << ',' << m_sendbuf_size

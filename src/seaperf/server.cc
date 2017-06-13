@@ -79,7 +79,7 @@ future<> BenchmarkConn::process() {
       })
       .then([this]() mutable {
         auto bench_sec = m_bench_duration.count();
-        auto mbit_cnt = m_byte_cnt / 1000000;
+        auto mbit_cnt = 8 * m_byte_cnt / 1000000;
         std::cout << "duration sec, bytes sent, throughput, throuput unit\n"
                   << bench_sec << ',' << m_byte_cnt << ','
                   << mbit_cnt / bench_sec << ',' << "10^6bits\n";
