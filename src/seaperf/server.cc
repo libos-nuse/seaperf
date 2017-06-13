@@ -69,9 +69,7 @@ future<> Server::stop() {
   return std::move(m_stopped);
 }
 
-future<> Server::stopped() {
-  return m_stopped.discard_result();
-}
+future<> Server::stopped() { return m_stopped.discard_result(); }
 
 BenchmarkConn::BenchmarkConn(Server& s, connected_socket&& sock, socket_address)
     : server{s}, m_sock{std::move(sock)} {
@@ -90,6 +88,7 @@ future<> BenchmarkConn::process() {
       .then([this](auto buf) mutable {
         BenchmarkRequest req =
             *reinterpret_cast<const BenchmarkRequest*>(buf.get());
+        m_packet_size = le_to_cpu(req.packet_size);
         req.duration = le_to_cpu(req.duration);
         m_bench_duration = std::chrono::seconds{req.duration};
         m_bench_timer.arm(m_bench_duration);
@@ -116,9 +115,10 @@ future<> BenchmarkConn::process() {
       .then([this]() mutable {
         auto bench_sec = m_bench_duration.count();
         auto mbit_cnt = 8 * m_byte_cnt / 1000000;
-        std::cout << "duration sec, bytes sent, throughput, throuput unit\n"
-                  << bench_sec << ',' << m_byte_cnt << ','
-                  << mbit_cnt / bench_sec << ',' << "10^6bits\n";
+        std::cout << "duration sec, bytes sent, packet size, throughput, "
+                     "throuput unit\n"
+                  << bench_sec << ',' << m_byte_cnt << ',' << m_packet_size
+                  << ',' << mbit_cnt / bench_sec << ',' << "10^6bits\n";
 
         return when_all(m_in.close(), m_out.close()).discard_result();
       });

@@ -42,8 +42,8 @@ future<> Client::run(ipv4_addr addr) {
         m_out = m_sock.output();
 
         BenchmarkRequest req;
-        req.duration = m_bench_duration.count();
-        req.duration = cpu_to_le(req.duration);
+        req.duration = cpu_to_le(m_bench_duration.count());
+        req.packet_size = cpu_to_le(m_sendbuf_size);
         return m_out.write(reinterpret_cast<char*>(&req), sizeof(req));
       })
       .then([this]() mutable {

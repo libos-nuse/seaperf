@@ -5,6 +5,7 @@ namespace seaperf {
 
 using BenchmarkRequest = struct  {
   net::packed<uint64_t> duration;
+  net::packed<uint64_t> packet_size;
 } __attribute__((packed));
 
 using BenchmarkResult = struct  {

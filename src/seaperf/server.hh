@@ -48,6 +48,8 @@ class BenchmarkConn {
   uint64_t m_byte_cnt = 0;
   std::chrono::seconds m_bench_duration;
   timer<> m_bench_timer;
+
+  uint64_t m_packet_size;
 };
 }
 }
