@@ -6,10 +6,11 @@
 namespace seaperf {
 namespace server {
 
-future<> Server::listen(ipv4_addr addr) {
+future<> Server::listen(ipv4_addr addr, bool once) {
   listen_options lo;
   lo.reuse_address = true;
   m_listener = engine().listen(make_ipv4_address(addr), lo);
+  m_once = once;
   do_accepts();
   return make_ready_future<>();
 }
@@ -18,8 +19,13 @@ future<> Server::do_accepts() {
   return m_listener.accept()
       .then_wrapped(
           [this](future<connected_socket, socket_address> f_cs_sa) mutable {
+            if (m_stopping) {
+              maybe_idle();
+              return;
+            }
+
             auto cs_sa = f_cs_sa.get();
-            auto conn = new BenchmarkConn{std::get<0>(std::move(cs_sa)),
+            auto conn = new BenchmarkConn{*this, std::get<0>(std::move(cs_sa)),
                                           std::get<1>(std::move(cs_sa))};
             conn->process().then_wrapped([this, conn](auto&& f) {
               delete conn;
@@ -28,7 +34,11 @@ future<> Server::do_accepts() {
               } catch (std::exception& ex) {
                 std::cerr << "request error: " << ex.what() << std::endl;
               }
+              if (m_once) {
+                engine().exit(0);
+              }
             });
+
             do_accepts();
           })
       .then_wrapped([](auto f) {
@@ -40,12 +50,37 @@ future<> Server::do_accepts() {
       });
 }
 
-future<> Server::stop() {
-  // TODO
-  return make_ready_future<>();
+void Server::register_connection() { m_active_connections++; }
+
+void Server::unregister_connection() {
+  m_active_connections--;
+  maybe_idle();
 }
 
-future<> Server::stopped() { return m_stopped.discard_result(); }
+void Server::maybe_idle() {
+  if (m_stopping && !m_active_connections) {
+    m_all_connections_stopped.set_value();
+  }
+}
+
+future<> Server::stop() {
+  m_stopping = true;
+  m_listener.abort_accept();
+  return std::move(m_stopped);
+}
+
+future<> Server::stopped() {
+  return m_stopped.discard_result();
+}
+
+BenchmarkConn::BenchmarkConn(Server& s, connected_socket&& sock, socket_address)
+    : server{s}, m_sock{std::move(sock)} {
+  m_in = m_sock.input();
+  m_out = m_sock.output();
+  server.register_connection();
+}
+
+BenchmarkConn::~BenchmarkConn() { server.unregister_connection(); }
 
 future<> BenchmarkConn::process() {
   m_is_time_up = false;
@@ -53,7 +88,8 @@ future<> BenchmarkConn::process() {
 
   return m_in.read_exactly(sizeof(BenchmarkRequest))
       .then([this](auto buf) mutable {
-        BenchmarkRequest req = *reinterpret_cast<const BenchmarkRequest*>(buf.get());
+        BenchmarkRequest req =
+            *reinterpret_cast<const BenchmarkRequest*>(buf.get());
         req.duration = le_to_cpu(req.duration);
         m_bench_duration = std::chrono::seconds{req.duration};
         m_bench_timer.arm(m_bench_duration);

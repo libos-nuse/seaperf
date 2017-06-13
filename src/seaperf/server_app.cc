@@ -10,19 +10,25 @@
 
 #include "server.hh"
 
-future<> app_main(app_template& app) {
+using Server = seaperf::server::Server;
+
+void app_main(app_template& app) {
   auto& args = app.configuration();
   auto port = args["port"].as<uint16_t>();
+  auto once = args["once"].as<bool>();
   listen_options lo;
   lo.reuse_address = true;
-  auto server = new seaperf::server::Server{};
+  auto server = new Server{};
+
   server->start()
-      .then([server, port] { return server->listen(port); })
-      .then([server, port] {
+      .then(
+          [server, port, once]() mutable { return server->listen(port, once); })
+      .then([server, port]() mutable {
         print("Seaperf server listening on port %d ...\n", port);
-        engine().at_exit([server] { return server->stop(); });
+        engine().at_exit([server]() mutable {
+          return server->stop();
+        });
       });
-  return server->stopped();
 }
 
 int main(int argc, char* argv[]) {
@@ -31,13 +37,8 @@ int main(int argc, char* argv[]) {
   app_template app;
   app.add_options()("port", bpo::value<uint16_t>()->default_value(12865),
                     "seaperf server port");
+  app.add_options()("once", bpo::bool_switch()->default_value(false),
+                    "only accept a single connection");
 
-  try {
-    app.run(argc, argv, [&app] { return app_main(app); });
-  } catch (...) {
-    std::cerr << std::current_exception() << '\n';
-    return EXIT_FAILURE;
-  }
-
-  return EXIT_SUCCESS;
+  return app.run_deprecated(argc, argv, [&app] { return app_main(app); });
 }
