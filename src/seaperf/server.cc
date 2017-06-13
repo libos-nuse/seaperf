@@ -55,8 +55,8 @@ future<> BenchmarkConn::process() {
       .then([this](auto buf) mutable {
         BenchmarkRequest req = *reinterpret_cast<const BenchmarkRequest*>(buf.get());
         req.duration = le_to_cpu(req.duration);
-        auto duration = std::chrono::seconds{req.duration};
-        m_bench_timer.arm(duration);
+        m_bench_duration = std::chrono::seconds{req.duration};
+        m_bench_timer.arm(m_bench_duration);
 
         return repeat([this]() mutable {
           return m_in.read().then([this](auto buf) mutable {
@@ -78,6 +78,12 @@ future<> BenchmarkConn::process() {
         return m_out.write(reinterpret_cast<char*>(&res), sizeof(res));
       })
       .then([this]() mutable {
+        auto bench_sec = m_bench_duration.count();
+        auto mbit_cnt = m_byte_cnt / 1000000;
+        std::cout << "duration sec, bytes sent, throughput, throuput unit\n"
+                  << bench_sec << ',' << m_byte_cnt << ','
+                  << mbit_cnt / bench_sec << ',' << "10^6bits\n";
+
         return when_all(m_in.close(), m_out.close()).discard_result();
       });
 }

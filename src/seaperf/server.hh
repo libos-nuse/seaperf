@@ -24,6 +24,7 @@ class BenchmarkConn {
 
   bool m_is_time_up = false;
   uint64_t m_byte_cnt = 0;
+  std::chrono::seconds m_bench_duration;
   timer<> m_bench_timer;
 };
 

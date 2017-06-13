@@ -61,7 +61,7 @@ future<> Client::run(ipv4_addr addr) {
         std::cout << "duration sec, bytes sent, packet size, throughput, "
                      "throuput unit\n"
                   << bench_sec << ',' << res.byte_cnt << ',' << m_sendbuf_size
-                  << ',' << mbit_cnt / bench_sec << ',' << "10^6bits" << '\n';
+                  << ',' << mbit_cnt / bench_sec << ',' << "10^6bits\n";
       })
       .then([this]() mutable {
         return when_all(m_in.close(), m_out.close()).discard_result();
