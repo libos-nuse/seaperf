@@ -23,7 +23,7 @@ class BenchmarkConn {
   output_stream<char> m_out;
 
   bool m_is_time_up = false;
-  int64_t m_byte_cnt = 0;
+  uint64_t m_byte_cnt = 0;
   timer<> m_bench_timer;
 };
 

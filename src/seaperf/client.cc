@@ -51,16 +51,17 @@ future<> Client::run(ipv4_addr addr) {
         return this->benchmark();
       })
       .then([this]() mutable {
-        return m_in.read_exactly(sizeof(BenchmarkResult))
-            .then([this](auto buf) {
-              auto bench_sec = m_bench_duration.count();
-              BenchmarkResult res =
-                  *reinterpret_cast<const BenchmarkResult*>(buf.get());
-              std::cout << "duration sec, bytes sent, packet size, throughput\n"
-                        << bench_sec << ',' << res.byte_cnt << ','
-                        << m_sendbuf_size << ',' << res.byte_cnt / bench_sec
-                        << '\n';
-            });
+        return m_in.read_exactly(sizeof(BenchmarkResult));
+      })
+      .then([this](auto buf) mutable {
+        BenchmarkResult res = *reinterpret_cast<const BenchmarkResult*>(buf.get());
+        res.byte_cnt = le_to_cpu(res.byte_cnt);
+        auto bench_sec = m_bench_duration.count();
+        auto mbit_cnt = res.byte_cnt / 1000000;
+        std::cout << "duration sec, bytes sent, packet size, throughput, "
+                     "throuput unit\n"
+                  << bench_sec << ',' << res.byte_cnt << ',' << m_sendbuf_size
+                  << ',' << mbit_cnt / bench_sec << ',' << "10^6bits" << '\n';
       })
       .then([this]() mutable {
         return when_all(m_in.close(), m_out.close()).discard_result();

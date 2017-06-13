@@ -74,7 +74,7 @@ future<> BenchmarkConn::process() {
       })
       .then([this]() mutable {
         BenchmarkResult res;
-        res.byte_cnt = m_byte_cnt;
+        res.byte_cnt = cpu_to_le(m_byte_cnt);
         return m_out.write(reinterpret_cast<char*>(&res), sizeof(res));
       })
       .then([this]() mutable {
